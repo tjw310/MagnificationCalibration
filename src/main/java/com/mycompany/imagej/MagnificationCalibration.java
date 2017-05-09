@@ -80,7 +80,7 @@ import org.scijava.Context;
 import org.scijava.command.CommandService;
 
 /**
- * TODO
+ *  Adapted from CellCounter Imagej plugin
  *
  * @author Thomas Watson
  */
