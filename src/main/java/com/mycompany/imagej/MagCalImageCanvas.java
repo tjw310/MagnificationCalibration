@@ -9,6 +9,7 @@ import ij.measure.Calibration;
 import ij.process.ImageProcessor;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Font;
 import java.awt.Graphics;
@@ -114,6 +115,7 @@ public class MagCalImageCanvas extends ImageCanvas {
         while (it.hasNext()) {
             final MarkerVector mv = it.next();
             final int traceNumber = mv.getTraceNumber();
+            g2.setColor(Color.yellow);
             final ListIterator<Marker> mit = mv.listIterator();
             while (mit.hasNext()) {
                 final Marker m = mit.next();
@@ -157,6 +159,7 @@ public class MagCalImageCanvas extends ImageCanvas {
         while (it.hasNext()) {
             final MarkerVector mv = it.next();
             final int traceNumber = mv.getTraceNumber();
+            g2r.setColor(Color.yellow);
             final ListIterator<Marker> mit = mv.listIterator();
             while (mit.hasNext()) {
                 final Marker m = mit.next();

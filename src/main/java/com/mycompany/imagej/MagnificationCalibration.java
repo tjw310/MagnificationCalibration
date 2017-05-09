@@ -96,6 +96,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
 
     private Vector<MarkerVector> typeVector;
     private Vector<JRadioButton> dynRadioVector;
+    private Vector<JTextField> txtFieldVector;;
     private MarkerVector markerVector;
     private MarkerVector currentMarkerVector;
     private int currentMarkerIndex;
@@ -124,13 +125,18 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
 
     private GridLayout dynGrid;
     
+    static MagnificationCalibration instance;
+    
 
     public void run() {
         //super("Magnification Calibration");
         setResizable(false);
         typeVector = new Vector<MarkerVector>();
         dynRadioVector = new Vector<JRadioButton>();
+        txtFieldVector = new Vector<JTextField>();
         initGUI();
+        populateTxtFields();
+        instance = this;
     }
 
     /** Show the GUI threadsafe */
@@ -207,7 +213,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         statButtonPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
         statButtonPanel.setLayout(gb);
 
-        gbc = new GridBagConstraints();
+        /* gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.gridx = 0;
@@ -218,6 +224,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         newCheck.addItemListener(this);
         gb.setConstraints(newCheck, gbc);
         statButtonPanel.add(newCheck);
+        */
 
         gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
@@ -272,17 +279,32 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.gridx = 0;
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
+        gbc.gridwidth = GridBagConstraints.REMAINDER; 
         deleteButton = makeButton(DELETE, "delete last marker");
         deleteButton.setEnabled(false);
         gb.setConstraints(deleteButton, gbc);
         statButtonPanel.add(deleteButton);
+        
+        gbc = new GridBagConstraints();
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.ipadx = 5;
+        gb.setConstraints(statButtonPanel, gbc);
+        getContentPane().add(statButtonPanel);
 
         final Runnable runner = new GUIShower(this);
         EventQueue.invokeLater(runner);
     }
 
-
+    private JTextField makeDynamicTextArea() {
+        final JTextField txtFld = new JTextField();
+        txtFld.setHorizontalAlignment(SwingConstants.CENTER);
+        txtFld.setBorder(BorderFactory.createEtchedBorder(EtchedBorder.LOWERED));
+        txtFld.setEditable(false);
+        txtFld.setText("0");
+        txtFieldVector.add(txtFld);
+        return txtFld;
+    }
 
     private JRadioButton makeDynRadioButton(final int traceNumber) {
         final JRadioButton jrButton = new JRadioButton("Trace:  " + traceNumber);
@@ -292,6 +314,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         radioGrp.add(jrButton);
         markerVector = new MarkerVector(traceNumber);
         typeVector.add(markerVector);
+        dynTxtPanel.add(makeDynamicTextArea());
         return jrButton;
     }
 
@@ -300,6 +323,20 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         jButton.setToolTipText(tooltip);
         jButton.addActionListener(this);
         return jButton;
+    }
+    
+    void populateTxtFields() {
+        final ListIterator<MarkerVector> it = typeVector.listIterator();
+        while (it.hasNext()) {
+            final int index = it.nextIndex();
+            if (txtFieldVector.size() > index) {
+                final MarkerVector markerVector = it.next();
+                final int count = markerVector.size();
+                final JTextField tArea = txtFieldVector.get(index);
+                tArea.setText("" + count);
+            }
+        }
+        validateLayout();
     }
 
     private void initializeImage() {
@@ -311,7 +348,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             ImageProcessor ip = img.getProcessor();
             ip.resetRoi();
             
-            if (keepOriginal) ip = ip.crop();
+            //if (keepOriginal) ip = ip.crop();
             counterImg = new ImagePlus("Counter Window - " + img.getTitle(), ip);   
             ic = new MagCalImageCanvas(counterImg, typeVector, this);
             new ImageWindow(counterImg,ic);
@@ -323,14 +360,11 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         Calibration cal = img.getCalibration(); //  to conserve voxel size of the original image
         counterImg.setCalibration(cal);
         
-        if (!keepOriginal) {
-            img.changes = false;
-            img.close();
-        }
-        delCheck.setEnabled(true);
-        numbersCheck.setEnabled(true);
-        showAllCheck.setSelected(false);
-        if (counterImg.getStackSize() > 1) showAllCheck.setEnabled(true);
+        img.changes = false;
+        img.close();
+        //numbersCheck.setEnabled(true);
+        //showAllCheck.setSelected(false);
+        //if (counterImg.getStackSize() > 1) showAllCheck.setEnabled(true);
         addButton.setEnabled(true);
         removeButton.setEnabled(true);
         deleteButton.setEnabled(true);
@@ -390,6 +424,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             ic.removeLastMarker();
         }
         if (ic != null) ic.repaint();
+        populateTxtFields();
     }
 
     @Override
@@ -401,6 +436,14 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
                 keepOriginal = false;
             }
         }
+    }
+    
+    public Vector<JRadioButton> getButtonVector() {
+        return dynRadioVector;
+    }
+
+    public void setButtonVector(final Vector<JRadioButton> buttonVector) {
+        this.dynRadioVector = buttonVector;
     }
 
     public MarkerVector getCurrentMarkerVector() {
@@ -427,5 +470,16 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         ImagePlus img = IJ.openImage(path.toAbsolutePath().toString());
         img.show();
         ij.command().run(MagnificationCalibration.class, true);
+    }
+    
+    public static void setType(final String type) {
+        if (instance == null || instance.ic == null || type == null) return;
+        final int index = Integer.parseInt(type) - 1;
+        final int buttons = instance.dynRadioVector.size();
+        if (index < 0 || index >= buttons) return;
+        final JRadioButton rbutton = instance.dynRadioVector.elementAt(index);
+        instance.radioGrp.setSelected(rbutton.getModel(), true);
+        instance.currentMarkerVector = instance.typeVector.get(index);
+        instance.ic.setCurrentMarkerVector(instance.currentMarkerVector);
     }
 }
