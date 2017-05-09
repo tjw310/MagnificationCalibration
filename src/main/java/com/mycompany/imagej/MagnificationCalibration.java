@@ -48,6 +48,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
 import io.scif.services.DatasetIOService;
+import javassist.bytecode.Descriptor.Iterator;
 
 import java.awt.Dimension;
 import java.awt.EventQueue;
@@ -140,7 +141,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         @Override
         public void run() {
             jFrame.pack();
-            jFrame.setLocation(1000, 200);
+            jFrame.setLocation(500, 200);
             jFrame.setVisible(true);
         }
     }
@@ -152,7 +153,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
 
         radioGrp = new ButtonGroup();// to group the radiobuttons
 
-        dynGrid = new GridLayout(8, 1);
+        dynGrid = new GridLayout(1, 1);
         dynGrid.setVgap(2);
 
         // this panel will keep the dynamic GUI parts
@@ -167,14 +168,14 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.BOTH;
-        gbc.ipadx = 5;
+        //gbc.ipadx = 5;
         gb.setConstraints(dynButtonPanel, gbc);
         dynPanel.add(dynButtonPanel);
 
-        gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.ipadx = 5;
+        //gbc = new GridBagConstraints();
+        //gbc.anchor = GridBagConstraints.NORTHWEST;
+        //gbc.fill = GridBagConstraints.NONE;
+        //gbc.ipadx = 5;
         gb.setConstraints(dynPanel, gbc);
         getContentPane().add(dynPanel);
 
@@ -185,73 +186,27 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         statButtonPanel.setBorder(BorderFactory.createTitledBorder("Actions"));
         statButtonPanel.setLayout(gb);
 
-        /* gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.gridx = 0;
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-        newCheck = new JCheckBox();
-        newCheck.setToolTipText("Keep original");
-        newCheck.setSelected(false);
-        newCheck.addItemListener(this);
-        gb.setConstraints(newCheck, gbc);
-        statButtonPanel.add(newCheck);
-        */
-
         gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.gridx = 0;
         gbc.gridwidth = GridBagConstraints.REMAINDER;
+        
         initializeButton = makeButton(INITIALIZE, "Initialize image to count");
         gb.setConstraints(initializeButton, gbc);
         statButtonPanel.add(initializeButton);
 
-        gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.gridx = 0;
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-        gbc.insets = new Insets(3, 0, 3, 0);
-        separator = new JSeparator(SwingConstants.HORIZONTAL);
-        separator.setPreferredSize(new Dimension(1, 1));
-        gb.setConstraints(separator, gbc);
-        statButtonPanel.add(separator);
-
-        gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.gridx = 0;
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
+        
         addButton = makeButton(ADD, "add a counter type");
+        addButton.setEnabled(false);
         gb.setConstraints(addButton, gbc);
         statButtonPanel.add(addButton);
 
-        gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.gridx = 0;
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
         removeButton = makeButton(REMOVE, "remove last counter type");
+        removeButton.setEnabled(false);
         gb.setConstraints(removeButton, gbc);
         statButtonPanel.add(removeButton);
 
-        gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.gridx = 0;
-        gbc.insets = new Insets(3, 0, 3, 0);
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-        separator = new JSeparator(SwingConstants.HORIZONTAL);
-        separator.setPreferredSize(new Dimension(1, 1));
-        gb.setConstraints(separator, gbc);
-        statButtonPanel.add(separator);
-
-        gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.gridx = 0;
-        gbc.gridwidth = GridBagConstraints.REMAINDER; 
         deleteButton = makeButton(DELETE, "delete last marker");
         deleteButton.setEnabled(false);
         gb.setConstraints(deleteButton, gbc);
@@ -260,7 +215,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.NONE;
-        gbc.ipadx = 5;
+        //gbc.ipadx = 5;
         gb.setConstraints(statButtonPanel, gbc);
         getContentPane().add(statButtonPanel);
 
@@ -341,11 +296,25 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
                 dynGrid.setRows(dynRadioVector.size());
             }
             if (typeVector.size() > 1) {
-                typeVector.removeElementAt(typeVector.size() - 1);
+                typeVector.removeElementAt(currentMarkerIndex);
             }
+            ListIterator<MarkerVector> itr = typeVector.listIterator();
+            while (itr.hasNext()){
+                if (itr.nextIndex()>=currentMarkerIndex){
+                    itr.next().setTraceNumber(itr.nextIndex());
+                }
+                else { 
+                    itr.next();
+                }
+            }
+            
+            //currentMarkerVector = typeVector.get(currentMarkerIndex);
+            ic.setCurrentMarkerVector(typeVector.get(currentMarkerIndex));
+            
             validateLayout();
 
-            if (ic != null) ic.setTypeVector(typeVector);
+            if (ic != null) ic.setTypeVector(typeVector); 
+            ic.repaint();
         }
         else if (command.equals(INITIALIZE)) {
             initializeImage();

@@ -68,7 +68,7 @@ public class MarkerVector extends Vector<Marker> {
         return traceNumber;
     }
 
-    public void setType(final int traceNumber) {
+    public void setTraceNumber(final int traceNumber) {
         this.traceNumber = traceNumber;
     }
 }
