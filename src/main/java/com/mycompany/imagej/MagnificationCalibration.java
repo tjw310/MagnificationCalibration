@@ -85,7 +85,7 @@ import org.scijava.command.CommandService;
  * @author Thomas Watson
  */
 @Plugin(type = Command.class)
-public class MagnificationCalibration extends JFrame implements ActionListener, ItemListener, Command
+public class MagnificationCalibration extends JFrame implements ActionListener, Command
 {
 
     private static final String ADD = "Add";
@@ -96,7 +96,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
 
     private Vector<MarkerVector> typeVector;
     private Vector<JRadioButton> dynRadioVector;
-    private Vector<JTextField> txtFieldVector;;
     private MarkerVector markerVector;
     private MarkerVector currentMarkerVector;
     private int currentMarkerIndex;
@@ -104,11 +103,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     private JPanel dynPanel;
     private JPanel dynButtonPanel;
     private JPanel statButtonPanel;
-    private JPanel dynTxtPanel;
-    private JCheckBox delCheck;
-    private JCheckBox newCheck;
-    private JCheckBox numbersCheck;
-    private JCheckBox showAllCheck;
     private ButtonGroup radioGrp;
     private JSeparator separator;
     private JButton addButton;
@@ -116,12 +110,9 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     private JButton initializeButton;
     private JButton deleteButton;
 
-    private boolean keepOriginal = false;
-
     private MagCalImageCanvas ic;
 
-    private static ImagePlus img;
-    private ImagePlus counterImg;
+    private ImagePlus calibImg;
 
     private GridLayout dynGrid;
     
@@ -133,9 +124,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         setResizable(false);
         typeVector = new Vector<MarkerVector>();
         dynRadioVector = new Vector<JRadioButton>();
-        txtFieldVector = new Vector<JTextField>();
         initGUI();
-        populateTxtFields();
         instance = this;
     }
 
@@ -182,16 +171,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         gb.setConstraints(dynButtonPanel, gbc);
         dynPanel.add(dynButtonPanel);
 
-        // this panel keeps the score
-        dynTxtPanel = new JPanel();
-        dynTxtPanel.setLayout(dynGrid);
-        gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.ipadx = 5;
-        gb.setConstraints(dynTxtPanel, gbc);
-        dynPanel.add(dynTxtPanel);
-
         gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.NONE;
@@ -200,13 +179,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         getContentPane().add(dynPanel);
 
         dynButtonPanel.add(makeDynRadioButton(1));
-        dynButtonPanel.add(makeDynRadioButton(2));
-        dynButtonPanel.add(makeDynRadioButton(3));
-        dynButtonPanel.add(makeDynRadioButton(4));
-        dynButtonPanel.add(makeDynRadioButton(5));
-        dynButtonPanel.add(makeDynRadioButton(6));
-        dynButtonPanel.add(makeDynRadioButton(7));
-        dynButtonPanel.add(makeDynRadioButton(8));
 
         // create a "static" panel to hold control buttons
         statButtonPanel = new JPanel();
@@ -296,16 +268,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         EventQueue.invokeLater(runner);
     }
 
-    private JTextField makeDynamicTextArea() {
-        final JTextField txtFld = new JTextField();
-        txtFld.setHorizontalAlignment(SwingConstants.CENTER);
-        txtFld.setBorder(BorderFactory.createEtchedBorder(EtchedBorder.LOWERED));
-        txtFld.setEditable(false);
-        txtFld.setText("0");
-        txtFieldVector.add(txtFld);
-        return txtFld;
-    }
-
     private JRadioButton makeDynRadioButton(final int traceNumber) {
         final JRadioButton jrButton = new JRadioButton("Trace:  " + traceNumber);
         jrButton.setActionCommand(TYPE_COMMAND_PREFIX + traceNumber);
@@ -314,7 +276,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         radioGrp.add(jrButton);
         markerVector = new MarkerVector(traceNumber);
         typeVector.add(markerVector);
-        dynTxtPanel.add(makeDynamicTextArea());
         return jrButton;
     }
 
@@ -325,46 +286,27 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         return jButton;
     }
     
-    void populateTxtFields() {
-        final ListIterator<MarkerVector> it = typeVector.listIterator();
-        while (it.hasNext()) {
-            final int index = it.nextIndex();
-            if (txtFieldVector.size() > index) {
-                final MarkerVector markerVector = it.next();
-                final int count = markerVector.size();
-                final JTextField tArea = txtFieldVector.get(index);
-                tArea.setText("" + count);
-            }
-        }
-        validateLayout();
-    }
 
     private void initializeImage() {
-        img = WindowManager.getCurrentImage();
+        ImagePlus img = WindowManager.getCurrentImage();
         if (img == null) {
             IJ.noImage();
         }
         else if (img.getStackSize() == 1) {
             ImageProcessor ip = img.getProcessor();
-            ip.resetRoi();
-            
-            //if (keepOriginal) ip = ip.crop();
-            counterImg = new ImagePlus("Counter Window - " + img.getTitle(), ip);   
-            ic = new MagCalImageCanvas(counterImg, typeVector, this);
-            new ImageWindow(counterImg,ic);
+            ip.resetRoi();   
+            ip = ip.crop();
+            calibImg = new ImagePlus("Calibration Window - " + img.getTitle(), ip);   
+            ic = new MagCalImageCanvas(calibImg, typeVector, this);
+            new ImageWindow(calibImg,ic);
         }
         else if (img.getStackSize() > 1) {
             throw new IllegalArgumentException("cannot operate on image stacks");
         }
         
         Calibration cal = img.getCalibration(); //  to conserve voxel size of the original image
-        counterImg.setCalibration(cal);
+        calibImg.setCalibration(cal);
         
-        img.changes = false;
-        img.close();
-        //numbersCheck.setEnabled(true);
-        //showAllCheck.setSelected(false);
-        //if (counterImg.getStackSize() > 1) showAllCheck.setEnabled(true);
         addButton.setEnabled(true);
         removeButton.setEnabled(true);
         deleteButton.setEnabled(true);
@@ -373,7 +315,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     void validateLayout() {
         dynPanel.validate();
         dynButtonPanel.validate();
-        dynTxtPanel.validate();
         statButtonPanel.validate();
         validate();
         pack();
@@ -416,7 +357,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
                 IJ.error("You need to initialize first");
                 return;
             }
-            // ic.setDelmode(false); // just in case
             currentMarkerVector = typeVector.get(currentMarkerIndex);
             ic.setCurrentMarkerVector(currentMarkerVector);
         }
@@ -424,18 +364,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             ic.removeLastMarker();
         }
         if (ic != null) ic.repaint();
-        populateTxtFields();
-    }
-
-    @Override
-    public void itemStateChanged(final ItemEvent e) {
-        if (e.getItem().equals(newCheck)) {            if (e.getStateChange() == ItemEvent.SELECTED) {
-                keepOriginal = true;
-            }
-            else {
-                keepOriginal = false;
-            }
-        }
     }
     
     public Vector<JRadioButton> getButtonVector() {
@@ -460,15 +388,15 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         // Launch ImageJ as usual.
         final ImageJ ij = net.imagej.Main.launch(args);
 
-        // Launch the "OpenImage" command.
-        //Path path = Paths.get(System.getProperty("user.dir"));
-        
+        // Name and path of test image
         Path path = FileSystems.getDefault().getPath("MAX_rot_crop.tiff");
         System.out.println(path.toAbsolutePath().toString());
         
-        //ImagePlus img = IJ.openImage();
+        // Open test image from file
         ImagePlus img = IJ.openImage(path.toAbsolutePath().toString());
         img.show();
+        
+        // Launch "MagnifcationCalibration" Command
         ij.command().run(MagnificationCalibration.class, true);
     }
     

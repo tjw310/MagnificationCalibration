@@ -42,10 +42,9 @@ public class MarkerVector extends Vector<Marker> {
     }
 
     public void addMarker(final Marker marker) {
-        if (this.size()>3) {
-            throw new IllegalArgumentException("number of points cannot exceed 4");
-        }
-        add(marker);
+        if (this.size()<4) {
+            add(marker); 
+        }      
     }
 
     public Marker getMarker(final int n) {
@@ -61,7 +60,9 @@ public class MarkerVector extends Vector<Marker> {
     }
 
     public void removeLastMarker() {
+        if (!this.isEmpty()) {
         super.removeElementAt(size() - 1);
+        }
     }
     public int getTraceNumber() {
         return traceNumber;

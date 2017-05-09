@@ -8,7 +8,7 @@ public class MarkerVectorTest {
     private MarkerVector classMarkerVector;
     
     /** Test for adding a marker to a complete vector (i.e size of vector is greater than 4) **/
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testAddMarker() {
         classMarker = new Marker();
         classMarkerVector = new MarkerVector(0);

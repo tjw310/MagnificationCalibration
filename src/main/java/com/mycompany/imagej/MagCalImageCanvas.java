@@ -34,7 +34,7 @@ public class MagCalImageCanvas extends ImageCanvas {
     private final ImagePlus img;
     private final Font font = new Font("SansSerif", Font.PLAIN, 10);
 
-    /** Creates a new instance of CellCntrImageCanvas */
+    /** Creates a new instance of MagCalImageCanvas */
     public MagCalImageCanvas(final ImagePlus img,
         final Vector<MarkerVector> typeVector, final MagnificationCalibration classMagnificationCalibration)
     {
