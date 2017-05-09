@@ -62,6 +62,7 @@ public class MagCalImageCanvas extends ImageCanvas {
         final int y = super.offScreenY(e.getY());
         final Marker markedPoint = new Marker(x, y);
         currentMarkerVector.addMarker(markedPoint);
+        currentMarkerVector.getDeltaVariables();
         repaint();
     }
 

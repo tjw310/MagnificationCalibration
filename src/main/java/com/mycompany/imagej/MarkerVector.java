@@ -1,5 +1,8 @@
 package com.mycompany.imagej;
 
+import java.util.Arrays;
+import java.util.ListIterator;
+
 /*
  * #%L
  * Magnifcation Calibration Marker Point
@@ -34,6 +37,10 @@ import java.util.Vector;
 public class MarkerVector extends Vector<Marker> {
     
     private int traceNumber;
+    private int dX; // difference in x between two extreme x-locations of marker vector (if there exists 4 points)
+    private int dXy; // difference in x between two extreme y-locations of marker vector (if there exists 4 points)
+    private int dY; // difference in y between two extreme y-locations of marker vector (if there exists 4 points)
+    private int dYx; // difference in y between two extreme x-locations of marker vector (if there exists 4 points)
 
     /** Creates a new instance of MarkerVector */
     public MarkerVector(int traceNumber) {
@@ -70,5 +77,48 @@ public class MarkerVector extends Vector<Marker> {
 
     public void setTraceNumber(final int traceNumber) {
         this.traceNumber = traceNumber;
+    }
+    
+    
+    public void getDeltaVariables() {
+        if (this.size()==4){     
+            ListIterator<Marker> itr = this.listIterator();
+            int xMax = itr.next().getX(); itr.previous();
+            int yMax = itr.next().getY();
+            int xMaxY = xMax; int yMaxX = yMax;
+            int yMin = yMax; int yMinX = yMax;
+            int xMin = xMax; int xMinY = xMax;
+            
+        
+            while (itr.hasNext()) {
+                int xNext = itr.next().getX(); itr.previous();
+                int yNext = itr.next().getY();
+      
+                if (xMax<xNext) {
+                    xMax = xNext;
+                    yMaxX = yNext;
+                }
+                if (xMin>xNext) {
+                    xMin = xNext;
+                    yMinX = yNext;
+                }
+                if (yMax<yNext) {
+                    yMax = yNext;
+                    xMaxY = xNext;
+                }
+                if (yMin>yNext) {
+                    yMin = yNext;
+                    xMinY = xNext;
+                }
+            }
+            this.dX = xMax-xMin;
+            this.dXy = xMaxY-xMinY;
+            this.dY = yMax-yMin;
+            this.dYx = yMaxX-yMinX;
+
+        }
+        else{
+            System.out.println("not 4 points");
+        }
     }
 }

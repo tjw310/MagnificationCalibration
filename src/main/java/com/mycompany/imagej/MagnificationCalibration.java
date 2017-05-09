@@ -105,7 +105,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     private JPanel dynButtonPanel;
     private JPanel statButtonPanel;
     private ButtonGroup radioGrp;
-    private JSeparator separator;
     private JButton addButton;
     private JButton removeButton;
     private JButton initializeButton;
@@ -168,17 +167,14 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.BOTH;
-        //gbc.ipadx = 5;
         gb.setConstraints(dynButtonPanel, gbc);
         dynPanel.add(dynButtonPanel);
 
-        //gbc = new GridBagConstraints();
-        //gbc.anchor = GridBagConstraints.NORTHWEST;
-        //gbc.fill = GridBagConstraints.NONE;
-        //gbc.ipadx = 5;
+        
         gb.setConstraints(dynPanel, gbc);
         getContentPane().add(dynPanel);
-
+        
+        // create single initial trace button
         dynButtonPanel.add(makeDynRadioButton(1));
 
         // create a "static" panel to hold control buttons
@@ -308,7 +304,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
                 }
             }
             
-            //currentMarkerVector = typeVector.get(currentMarkerIndex);
             ic.setCurrentMarkerVector(typeVector.get(currentMarkerIndex));
             
             validateLayout();
