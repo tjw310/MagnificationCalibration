@@ -33,9 +33,12 @@ import ij.gui.Roi;
 import ij.gui.StackWindow;
 import ij.gui.Plot;
 import ij.gui.PlotWindow;
+import ij.gui.GenericDialog;
 import ij.measure.Calibration;
+import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
 import net.imagej.ImageJ;
+import ij.process.ImageProcessor;
 
 import java.io.File;
 import java.nio.file.*;
@@ -95,7 +98,7 @@ import org.apache.commons.math3.stat.regression.SimpleRegression;
  * @author Thomas Watson
  */
 @Plugin(type = Command.class)
-public class MagnificationCalibration extends JFrame implements ActionListener, Command
+public class MagnificationCalibration extends JFrame implements ActionListener, PlugInFilter
 {
 
     private static final String ADD = "Add";
@@ -130,16 +133,28 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     
     private double[] opticCentre = new double[2];
     
-    static MagnificationCalibration instance;
-    
+    @Override
+    public int setup(String arg, ImagePlus imp) {
+        if (arg.equals("about")) {
+            showAbout();
+            return DONE;
+        }
 
-    public void run() {
-        //super("Magnification Calibration");
+        //image = imp;
+        return DOES_8G | DOES_16 | DOES_32 | DOES_RGB;
+    }
+    
+    public void showAbout() {
+        IJ.showMessage("Magnification Calibration",
+            "Calculate the Non-Telecentric Effective Source-Detector Distance"
+        );
+    }
+
+    public void run(ImageProcessor ip) {
         setResizable(false);
         typeVector = new Vector<MarkerVector>();
         dynRadioVector = new Vector<JRadioButton>();
         initGUI();
-        instance = this;
     }
 
     /** Show the GUI threadsafe */
@@ -458,30 +473,25 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         this.currentMarkerVector = currentMarkerVector;
     }
     
-    public static void main(final String... args) throws Exception {
-        // Launch ImageJ as usual.
-        final ImageJ ij = net.imagej.Main.launch(args);
+    public static void main(final String... args) throws Exception {       
+        // set the plugins.dir property to make the plugin appear in the Plugins menu
+        Class<?> clazz = MagnificationCalibration.class;
+        String url = clazz.getResource("/" + clazz.getName().replace('.', '/') + ".class").toString();
+        String pluginsDir = url.substring("file:".length(), url.length() - clazz.getName().length() - ".class".length());
+        System.setProperty("plugins.dir", pluginsDir);
 
-        // Name and path of test image
+        // start ImageJ
+        new ImageJ();
+        
+      // Name and path of test image
         Path path = FileSystems.getDefault().getPath("MAX_rot_crop.tiff");
         System.out.println(path.toAbsolutePath().toString());
         
         // Open test image from file
         ImagePlus img = IJ.openImage(path.toAbsolutePath().toString());
         img.show();
-        
-        // Launch "MagnifcationCalibration" Command
-        ij.command().run(MagnificationCalibration.class, true);
-    }
-    
-    public static void setType(final String type) {
-        if (instance == null || instance.ic == null || type == null) return;
-        final int index = Integer.parseInt(type) - 1;
-        final int buttons = instance.dynRadioVector.size();
-        if (index < 0 || index >= buttons) return;
-        final JRadioButton rbutton = instance.dynRadioVector.elementAt(index);
-        instance.radioGrp.setSelected(rbutton.getModel(), true);
-        instance.currentMarkerVector = instance.typeVector.get(index);
-        instance.ic.setCurrentMarkerVector(instance.currentMarkerVector);
+
+        // run the plugin
+        IJ.runPlugIn(clazz.getName(), "");
     }
 }
