@@ -31,6 +31,8 @@ import ij.WindowManager;
 import ij.gui.ImageWindow;
 import ij.gui.Roi;
 import ij.gui.StackWindow;
+import ij.gui.Plot;
+import ij.gui.PlotWindow;
 import ij.measure.Calibration;
 import ij.process.ImageProcessor;
 import net.imagej.ImageJ;
@@ -47,9 +49,13 @@ import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
+import com.kenai.jffi.Array;
+
+import groovyjarjarantlr.collections.List;
 import io.scif.services.DatasetIOService;
 import javassist.bytecode.Descriptor.Iterator;
 
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.EventQueue;
 import java.awt.FileDialog;
@@ -61,6 +67,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.util.ArrayList;
 import java.util.ListIterator;
 import java.util.Vector;
 
@@ -80,6 +87,8 @@ import javax.swing.border.EtchedBorder;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 
+import org.apache.commons.math3.stat.regression.SimpleRegression;
+
 /**
  *  Adapted from CellCounter Imagej plugin
  *
@@ -94,6 +103,8 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     private static final String INITIALIZE = "Initialize";
     private static final String DELETE = "Delete";
     private static final String TYPE_COMMAND_PREFIX = "trace";
+    private static final String ANALYSE = "Analyse";
+    private static final Double NaN = null;
 
     private Vector<MarkerVector> typeVector;
     private Vector<JRadioButton> dynRadioVector;
@@ -109,12 +120,15 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     private JButton removeButton;
     private JButton initializeButton;
     private JButton deleteButton;
+    private JButton analyseButton;
 
     private MagCalImageCanvas ic;
 
     private ImagePlus calibImg;
 
     private GridLayout dynGrid;
+    
+    private double[] opticCentre = new double[2];
     
     static MagnificationCalibration instance;
     
@@ -174,8 +188,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         gb.setConstraints(dynPanel, gbc);
         getContentPane().add(dynPanel);
         
-        // create single initial trace button
-        dynButtonPanel.add(makeDynRadioButton(1));
 
         // create a "static" panel to hold control buttons
         statButtonPanel = new JPanel();
@@ -207,6 +219,11 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         deleteButton.setEnabled(false);
         gb.setConstraints(deleteButton, gbc);
         statButtonPanel.add(deleteButton);
+        
+        analyseButton = makeButton(ANALYSE, "delete last marker");
+        analyseButton.setEnabled(false);
+        gb.setConstraints(analyseButton, gbc);
+        statButtonPanel.add(analyseButton);
         
         gbc = new GridBagConstraints();
         gbc.anchor = GridBagConstraints.NORTHWEST;
@@ -261,6 +278,13 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         addButton.setEnabled(true);
         removeButton.setEnabled(true);
         deleteButton.setEnabled(true);
+        analyseButton.setEnabled(true);
+        
+        dynButtonPanel.add(makeDynRadioButton(1));
+        currentMarkerIndex = 0;
+        dynRadioVector.elementAt(currentMarkerIndex).setSelected(true);
+        ic.setCurrentMarkerVector(typeVector.get(currentMarkerIndex));
+        validateLayout();
     }
 
     void validateLayout() {
@@ -279,6 +303,10 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             final int i = dynRadioVector.size() + 1;
             dynGrid.setRows(i);
             dynButtonPanel.add(makeDynRadioButton(i));
+            dynRadioVector.elementAt(currentMarkerIndex).setSelected(false);
+            currentMarkerIndex = dynRadioVector.size()-1;
+            dynRadioVector.elementAt(currentMarkerIndex).setSelected(true);
+            ic.setCurrentMarkerVector(typeVector.get(currentMarkerIndex));
             validateLayout();
 
             if (ic != null) ic.setTypeVector(typeVector);
@@ -291,9 +319,11 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
                 dynRadioVector.removeElementAt(dynRadioVector.size() - 1);
                 dynGrid.setRows(dynRadioVector.size());
             }
+            System.out.println(Integer.toString(typeVector.size()));
             if (typeVector.size() > 1) {
                 typeVector.removeElementAt(currentMarkerIndex);
             }
+            System.out.println(Integer.toString(typeVector.size()));
             ListIterator<MarkerVector> itr = typeVector.listIterator();
             while (itr.hasNext()){
                 if (itr.nextIndex()>=currentMarkerIndex){
@@ -304,8 +334,12 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
                 }
             }
             
+            if (currentMarkerIndex>=typeVector.size()){
+                currentMarkerIndex = typeVector.size()-1;
+            }
+                      
             ic.setCurrentMarkerVector(typeVector.get(currentMarkerIndex));
-            
+            dynRadioVector.elementAt(currentMarkerIndex).setSelected(true);            
             validateLayout();
 
             if (ic != null) ic.setTypeVector(typeVector); 
@@ -313,6 +347,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         }
         else if (command.equals(INITIALIZE)) {
             initializeImage();
+            initializeButton.setEnabled(false);
         }
         else if (command.startsWith(TYPE_COMMAND_PREFIX)) { // COUNT
             currentMarkerIndex =
@@ -327,7 +362,82 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         else if (command.equals(DELETE)) {
             ic.removeLastMarker();
         }
-        if (ic != null) ic.repaint();
+        else if (command.equals(ANALYSE)) {
+            this.getOpticCentre();
+            this.getSourceDetectorValues();
+        }
+    }
+    
+    private void getSourceDetectorValues() {
+        ListIterator<MarkerVector> itr = typeVector.listIterator();
+        SimpleRegression regressionClass = new SimpleRegression();
+        Plot plotClass = new Plot("Effective Source-Detector Distance","Average Trace Y-Position","R-Value");
+        ArrayList<Double> xVals = new ArrayList<Double>(1);
+        ArrayList<Double> yVals = new ArrayList<Double>(1);
+        double sourceDetDistTotal=0;
+        
+        while (itr.hasNext()) {
+            final MarkerVector currentTrace = itr.next();
+            if (currentTrace.getDy()>0) {
+            double sourceDetDist = currentTrace.getR(this.opticCentre);
+            xVals.add(currentTrace.getAverageY());
+            yVals.add(sourceDetDist);
+            regressionClass.addData(currentTrace.getAverageY(),sourceDetDist);
+            sourceDetDistTotal += sourceDetDist;
+            }
+        }
+        plotClass.addLabel(0, 0, "Av. Source-Detector Dist = " + String.format("%.0f", sourceDetDistTotal/yVals.size()));
+        plotClass.setLineWidth(2);
+        plotClass.setColor(Color.red);
+        plotClass.addPoints(xVals, yVals, PlotWindow.X);
+        plotClass.setLineWidth(1);
+        plotClass.show();
+    }
+    
+    private void getOpticCentre(){
+        ListIterator<MarkerVector> itr = typeVector.listIterator();
+        SimpleRegression regressionClass = new SimpleRegression();
+        Plot plotClass = new Plot("Optic Centre Fit","Average Trace Y-Position","dY/dYatMaxX");
+        
+        ArrayList<Double> xVals = new ArrayList<Double>(1);
+        ArrayList<Double> yVals = new ArrayList<Double>(1);
+        Double xValMin = Double.NaN;
+        Double xValMax = Double.NaN;
+        
+        while (itr.hasNext()) {
+            final MarkerVector currentTrace = itr.next();
+            if (currentTrace.size()==4) {
+                currentTrace.getDeltaVariables();
+                if (currentTrace.getDxatMaxY()!=0) {
+                    Double yVal = (double) currentTrace.getDy()/currentTrace.getDxatMaxY();
+                    Double xVal = (double) currentTrace.getAverageYPosition();
+                    yVals.add(yVal);
+                    xVals.add(xVal);
+                    regressionClass.addData(xVal,yVal);
+                    if (xValMin.isNaN() || xVal<xValMin) {
+                        xValMin = xVal;
+                    }
+                    if (xValMax.isNaN() || xVal>xValMax) {
+                        xValMax = xVal;
+                    }
+                }
+            }
+        }
+        if (xVals.size()>1) {
+            double intercept = regressionClass.getIntercept();
+            double gradient = regressionClass.getSlope();
+            this.opticCentre[0] = 1/gradient;
+            this.opticCentre[1] = -intercept/gradient;
+            plotClass.setLineWidth(2);
+            plotClass.setColor(Color.red);
+            plotClass.addPoints(xVals, yVals, PlotWindow.X);
+            plotClass.setLineWidth(1);
+            plotClass.setColor(Color.blue);
+            plotClass.drawLine(xValMin, gradient*xValMin+intercept, xValMax, gradient*xValMax+intercept);
+            plotClass.setColor(Color.black);
+            plotClass.addLabel(0, 0, "Optic Centre = ("+String.format("%.0f", this.opticCentre[0])+", "+String.format("%.0f", this.opticCentre[1])+")");
+            plotClass.show();  
+        }
     }
     
     public Vector<JRadioButton> getButtonVector() {
