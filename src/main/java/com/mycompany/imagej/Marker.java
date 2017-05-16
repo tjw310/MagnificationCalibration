@@ -30,40 +30,31 @@ package com.mycompany.imagej;
  */
 public class Marker {
 
-    private int x;
-    private int y;
+    private float x;
+    private float y;
 
     /** Creates a new instance of Marker */
     public Marker() {}
     
-    /** @parameters int x,y location of marker, minimum 0, maximum: window size */
-    public Marker(final int x, final int y) {
-        if (x<0 || y<0) {
-            throw new IllegalArgumentException("x,y should be greater than 0");
-        }
+    /** @parameters float x,y location of marker, minimum: -windowSize/2, maximum: windowsSize/2 */
+    public Marker(final float x, final float y) {
         this.x = x;
         this.y = y;
     }
 
-    public int getX() {
+    public float getX() {
         return x;
     }
 
     public void setX(final int x) {
-        if (x<0){
-            throw new IllegalArgumentException("x should be greater than 0");
-        }
         this.x = x;
     }
 
-    public int getY() {
+    public float getY() {
         return y;
     }
 
     public void setY(final int y) {
-        if (y<0) {
-         throw new IllegalArgumentException("x should be greater than 0");
-    }
         this.y = y;
     }
 

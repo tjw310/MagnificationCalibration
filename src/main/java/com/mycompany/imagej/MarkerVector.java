@@ -1,5 +1,6 @@
 package com.mycompany.imagej;
 
+import java.awt.geom.GeneralPath;
 import java.util.Arrays;
 import java.util.ListIterator;
 
@@ -37,11 +38,13 @@ import java.util.Vector;
 public class MarkerVector extends Vector<Marker> {
     
     private int traceNumber;
-    private int dX; // difference in x between two extreme x-locations of marker vector (if there exists 4 points)
-    private int dXy; // difference in x between two extreme y-locations of marker vector (if there exists 4 points)
-    private int dY; // difference in y between two extreme y-locations of marker vector (if there exists 4 points)
-    private int dYx; // difference in y between two extreme x-locations of marker vector (if there exists 4 points)
+    private float dX; // difference in x between two extreme x-locations of marker vector (if there exists 4 points)
+    private float dXy; // difference in x between two extreme y-locations of marker vector (if there exists 4 points)
+    private float dY; // difference in y between two extreme y-locations of marker vector (if there exists 4 points)
+    private float dYx; // difference in y between two extreme x-locations of marker vector (if there exists 4 points)
     private double averageY; //y position of trace (average);
+    
+    private GeneralPath tracePath = new GeneralPath();
 
     /** Creates a new instance of MarkerVector */
     public MarkerVector(int traceNumber) {
@@ -90,25 +93,32 @@ public class MarkerVector extends Vector<Marker> {
         this.traceNumber = traceNumber;
     }
     
-    public int getDx() {
+    public float getDx() {
         return this.dX;
     }
     
-    public int getDy() {
-        return this.dY;
+    public float getDy() {
+        if (this.averageY<0 && this.dY>0) {
+            return -1*this.dY;
+        }
+        else return this.dY;
+
     }
     
-    public int getDxatMaxY() {
+    public float getDxatMaxY() {
         return this.dXy;
     }
     
-    public int getDyatMaxX() {
-        return this.dYx;
+    public float getDyatMaxX() {
+        if (this.averageY<0 && this.dYx>0) {
+            return -1*this.dYx;
+        }
+        else return this.dYx;
     }
     
     public double getAverageYPosition(){
         ListIterator<Marker> itr = this.listIterator();
-        float y = 0;
+        double y = 0;
         while (itr.hasNext()) {
             y += itr.next().getY();
         }
@@ -116,23 +126,27 @@ public class MarkerVector extends Vector<Marker> {
         return this.averageY;
     }
     
-    public double getAverageY() {
-        return this.averageY;
+    public void setAverageY(double y) {
+        this.averageY = y;
     }
     
+    /** Calculates the lengths between four point that compose MarkerVector
+     * Only operate if there exist 4 points
+     */
     public void getDeltaVariables() {
-        if (this.size()==4){     
+        if (this.size()==4){
             ListIterator<Marker> itr = this.listIterator();
-            int xMax = itr.next().getX(); itr.previous();
-            int yMax = itr.next().getY();
-            int xMaxY = xMax; int yMaxX = yMax;
-            int yMin = yMax; int yMinX = yMax;
-            int xMin = xMax; int xMinY = xMax;
+            float xMax = itr.next().getX(); itr.previous();
+            float yMax = itr.next().getY();
+            float yMaxX = yMax;
+            float yMin = yMax; 
+            float yMinX = yMax;
+            float xMin = xMax; 
             
         
             while (itr.hasNext()) {
-                int xNext = itr.next().getX(); itr.previous();
-                int yNext = itr.next().getY();
+                float xNext = itr.next().getX(); itr.previous();
+                float yNext = itr.next().getY();
       
                 if (xMax<xNext) {
                     xMax = xNext;
@@ -144,18 +158,17 @@ public class MarkerVector extends Vector<Marker> {
                 }
                 if (yMax<yNext) {
                     yMax = yNext;
-                    xMaxY = xNext;
+                   // xMaxY = xNext;
                 }
                 if (yMin>yNext) {
                     yMin = yNext;
-                    xMinY = xNext;
+                   // xMinY = xNext;
                 }
             }
             this.dX = xMax-xMin;
-            this.dXy = xMaxY-xMinY;
             this.dY = yMax-yMin;
             this.dYx = yMaxX-yMinX;
-            
+   
             if(this.dX==0) {
                 this.dX=1;
             }
@@ -165,24 +178,117 @@ public class MarkerVector extends Vector<Marker> {
             else if(this.dYx==0){
                 this.dYx = 1;
             }
-            else if(this.dXy==0){
-                this.dXy = 1;
-            }
-
+            
+            //this.dXy = xMaxY-xMinY;
+            //System.out.println(Integer.toString(xMaxY-xMinY));
+            
+            float dXy = (float) this.dY/(this.dX*this.dYx);
+            this.dXy = dXy;
         }
     }
     
+    /** Estimates source-detector distance
+     * @param this.dY!=0 or returns NaN
+     * @param opticCentre
+     * @return source detector distance
+     */
     public double getR(final double[] opticCentre) {
-        double R;
-        this.getDeltaVariables();
-        double y = this.getAverageY();
-        double a = 1/Math.sqrt(2);
-        double b = this.dX*this.dX*(y-opticCentre[1])*(y-opticCentre[1])/(this.dY*this.dY)-opticCentre[0]*opticCentre[0];
-        double c = (this.dY*this.dY+(y-opticCentre[1])*(y-opticCentre[1]))*
-                (this.dX*this.dX*(y-opticCentre[1])*(y-opticCentre[1])-this.dY*this.dY*opticCentre[0]*opticCentre[0])*
-                (this.dX*this.dX*(y-opticCentre[1])*(y-opticCentre[1])-this.dY*this.dY*opticCentre[0]*opticCentre[0]);
-        double d = (double) this.dY*this.dY*this.dY*this.dY*(y-opticCentre[1])*(y-opticCentre[1]);
-        R = a*Math.sqrt(b+Math.sqrt(c/d));
-        return R;
+        if (this.dY==0) {
+            return Double.NaN;
+        }
+        else {
+            double R; double dY = this.dY; double dX = this.dX;
+            double y = this.averageY;
+            double a = 1/Math.sqrt(2);
+            double b = dX*dX*(y-opticCentre[1])*(y-opticCentre[1])/(dY*dY)-opticCentre[0]*opticCentre[0];
+            double c = (dY*dY+(y-opticCentre[1])*(y-opticCentre[1]))*
+                    (dX*dX*(y-opticCentre[1])*(y-opticCentre[1])-dY*dY*opticCentre[0]*opticCentre[0])*
+                    (dX*dX*(y-opticCentre[1])*(y-opticCentre[1])-dY*dY*opticCentre[0]*opticCentre[0]);
+            double d = dY*dY*dY*dY*(y-opticCentre[1])*(y-opticCentre[1]);
+            R = a*Math.sqrt(b+Math.sqrt(c/d));
+            return R;
+        }
+    }
+    
+    /** gets source-detector distance when opticCentre = [0,0] */
+    public double getR() {
+        if (this.dY==0) {
+            return Double.NaN;
+        }
+        else {
+            double R; double dY = Math.abs(this.dY); double dX = this.dX;
+            double y = this.averageY;
+            double a = 1/Math.sqrt(2);
+            double b = dX*dX*y*y/(dY*dY);
+            double c = (dY*dY+y*y)*
+                    dX*dX*y*y*
+                    dX*dX*y*y;
+            double d = dY*dY*dY*dY*y*y;
+            R = a*Math.sqrt(b+Math.sqrt(c/d));
+            return R;
+        }
+    }
+    
+    /** Gets radius of trace orbit based on this.dX, opticCentre, and R
+     * 
+     * @param opticCentre
+     * @return double r, radius of trace orbit
+     */
+    public double getTraceRadius(final double[] opticCentre) {
+        double R = this.getR(opticCentre);
+        double dX = this.dX;
+        if (opticCentre[0]!=0) {
+            double r = Math.sqrt(dX*dX*R*R*R*R/(R*R*(dX*dX+2*(R*R+opticCentre[0]*opticCentre[0]))+2*Math.sqrt(R*R*R*R*(dX*dX*opticCentre[0]*opticCentre[0]+(R*R+opticCentre[0]*opticCentre[0])
+                    *(R*R+opticCentre[0]*opticCentre[0])))));
+            return r;
+        }
+        else {
+            double r = Math.sqrt(dX*dX*R*R*R*R/(dX*dX*R*R+4*(R*R*R*R)));
+            return r;
+        }
+    }
+    
+    /**Gets 2D trace as a GeneralPath object, to draw on ImageCanvas with Local R
+     * @param opticCentre
+     * @param numberPoints, number of points in trace to draw
+     */
+    public GeneralPath getTrace(double[] opticCentre, int numberPoints) {
+        this.tracePath.reset();
+        double R = this.getR(opticCentre);
+        double r = this.getTraceRadius(opticCentre);
+        double yPos = this.getAverageYPosition();
+        for (int i=0;i<numberPoints;i++) {
+            double angle = (double) i*(2*Math.PI)/numberPoints;
+            double x = (r*R*Math.cos(angle)-R*opticCentre[0])/(R+r*Math.sin(angle))+opticCentre[0];
+            double y = (R*yPos-R*opticCentre[1])/(R+r*Math.sin(angle))+opticCentre[1];
+            if (i==0) this.tracePath.moveTo(x, y);
+            else {
+                this.tracePath.lineTo(x, y);
+            }
+        }
+        this.tracePath.closePath();
+        return this.tracePath;
+    }
+    
+    /** Gets 2D trace as a GeneralPath object, to draw on ImageCanvas with Global R
+     * @param opticCentre
+     * @param numberPoints, number of points in trace to draw
+     * @param R, global effective source-detector distance
+     */
+    public GeneralPath getTrace(double[] opticCentre, int numberPoints, double R) {
+        this.tracePath.reset();
+        double r = this.getTraceRadius(opticCentre);
+        double yPos = this.getAverageYPosition();
+        for (int i=0;i<numberPoints;i++) {
+            double angle = (double) i*(2*Math.PI)/numberPoints;
+            double x = (r*R*Math.cos(angle)-R*opticCentre[0])/(R+r*Math.sin(angle))+opticCentre[0];
+            double y = (R*yPos-R*opticCentre[1])/(R+r*Math.sin(angle))+opticCentre[1];
+            if (i==0) this.tracePath.moveTo(x, y);
+            else {
+                this.tracePath.lineTo(x, y);
+            }
+        }
+        this.tracePath.closePath();
+        return this.tracePath;
     }
 }
