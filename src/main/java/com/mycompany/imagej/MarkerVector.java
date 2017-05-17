@@ -1,6 +1,7 @@
 package com.mycompany.imagej;
 
 import java.awt.geom.GeneralPath;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.ListIterator;
 
@@ -229,13 +230,31 @@ public class MarkerVector extends Vector<Marker> {
         }
     }
     
-    /** Gets radius of trace orbit based on this.dX, opticCentre, and R
+    /** Gets radius of trace orbit based on this.dX, opticCentre, and local R value
      * 
      * @param opticCentre
      * @return double r, radius of trace orbit
      */
     public double getTraceRadius(final double[] opticCentre) {
         double R = this.getR(opticCentre);
+        double dX = this.dX;
+        if (opticCentre[0]!=0) {
+            double r = Math.sqrt(dX*dX*R*R*R*R/(R*R*(dX*dX+2*(R*R+opticCentre[0]*opticCentre[0]))+2*Math.sqrt(R*R*R*R*(dX*dX*opticCentre[0]*opticCentre[0]+(R*R+opticCentre[0]*opticCentre[0])
+                    *(R*R+opticCentre[0]*opticCentre[0])))));
+            return r;
+        }
+        else {
+            double r = Math.sqrt(dX*dX*R*R*R*R/(dX*dX*R*R+4*(R*R*R*R)));
+            return r;
+        }
+    }
+    
+    /** Gets radius of trace orbit based on this.dX, opticCentre, and GLOBAL R
+     * 
+     * @param opticCentre
+     * @return double r, radius of trace orbit
+     */
+    public double getTraceRadius(final double[] opticCentre, double R) {
         double dX = this.dX;
         if (opticCentre[0]!=0) {
             double r = Math.sqrt(dX*dX*R*R*R*R/(R*R*(dX*dX+2*(R*R+opticCentre[0]*opticCentre[0]))+2*Math.sqrt(R*R*R*R*(dX*dX*opticCentre[0]*opticCentre[0]+(R*R+opticCentre[0]*opticCentre[0])
@@ -277,7 +296,7 @@ public class MarkerVector extends Vector<Marker> {
      */
     public GeneralPath getTrace(double[] opticCentre, int numberPoints, double R) {
         this.tracePath.reset();
-        double r = this.getTraceRadius(opticCentre);
+        double r = this.getTraceRadius(opticCentre,R);
         double yPos = this.getAverageYPosition();
         for (int i=0;i<numberPoints;i++) {
             double angle = (double) i*(2*Math.PI)/numberPoints;
@@ -290,5 +309,44 @@ public class MarkerVector extends Vector<Marker> {
         }
         this.tracePath.closePath();
         return this.tracePath;
+    }
+    
+    /**Finds two solutions of (x1,y1,x2,y2) coordinates in raw image, that correspond to coordinate (x,y)
+     * in the transformed image
+     * @param x, query x-position in transformed image
+     * @param y, query y-position in transformed image
+     * @param R
+     * @param opticCentre
+     * @param radius, query radius of trace orbit
+     * @return length 4 double array containing two solutions for (x1,y1,x2,y2) coordinates of raw image
+     */
+    private double[] getDetectorCoordinateAtRadius(final double[] opticCentre,final double x,final double y,final double R, final double radius) {
+        final double z = Math.sqrt(radius*radius-x*x);
+        final double epsilonFirstSolution = (R*x-R*opticCentre[0])/(R+z)+opticCentre[0];
+        final double epsilonSecondSolution = (R*x-R*opticCentre[0])/(R-z)+opticCentre[0];
+        final double sigmaFirstSolution = (y-opticCentre[1])/(x-opticCentre[0])*(epsilonFirstSolution-opticCentre[0])+opticCentre[1];
+        final double sigmaSecondSolution = (y-opticCentre[1])/(x-opticCentre[0])*(epsilonSecondSolution-opticCentre[0])+opticCentre[1];
+        double[] outputCoordinates = {epsilonFirstSolution,sigmaFirstSolution,epsilonSecondSolution,sigmaSecondSolution};
+        return outputCoordinates;
+    }
+    
+    /**
+     * 
+     * @param opticCentre
+     * @param x, query x-position in transformed image
+     * @param y, query y-position in transformed image
+     * @param R, effective source-detector distance
+     * @param beadPixelSize, size of bead equivalent to range around bead radius that you want to transform
+     * @return
+     */
+    public ArrayList<double[]> getDetectorLocations(final double[] opticCentre, final double x, final double y, final double R, final int beadPixelSize) {
+        final double traceRadius = this.getTraceRadius(opticCentre, R);
+        ArrayList<double[]> coordinateArray = new ArrayList<double[]>(1);
+        for (int i=0; i<beadPixelSize; i++) {
+            double radius = traceRadius-(double)(i-(beadPixelSize-1)/2);
+            double[] coordinates = this.getDetectorCoordinateAtRadius(opticCentre, x, y, R, radius);
+            coordinateArray.add(coordinates);
+        }
+        return coordinateArray;
     }
 }

@@ -2,6 +2,8 @@ package com.mycompany.imagej;
 
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
+
 import org.junit.Test;
 
 public class MarkerVectorTest {
@@ -94,4 +96,47 @@ public class MarkerVectorTest {
         assertEquals(rGuessString, "498.32"); 
         
     }
+    
+    @Test
+    public void testGetDetectorCoordinates() {
+        double opticCentre[] = {0,0};
+        double y = 2000;
+        double x = 250;
+        int beadPixelSize = 1;
+        int traceNumber = 0;
+        int dX = 1000;
+        int dY = 250;
+        int dXy = 0;
+        int dYx = 0;
+        
+        classMarkerVector = new MarkerVector(traceNumber,dX,dY,dXy,dYx,y);
+        double R = classMarkerVector.getR(opticCentre);
+        
+        ArrayList<double[]> guesses = classMarkerVector.getDetectorLocations(opticCentre, x, y, R, beadPixelSize);
+        double[] firstguess = guesses.get(0);
+        String xGuess = String.format("%.2f", firstguess[0]);
+        String yGuess = String.format("%.2f", firstguess[1]);
+        assertEquals(xGuess,"237.22");
+        assertEquals(yGuess,"1897.75");
+        
+        opticCentre[0] = 400; opticCentre[1] = -300;
+        R =  classMarkerVector.getR(opticCentre);
+        guesses = classMarkerVector.getDetectorLocations(opticCentre, x, y, R, beadPixelSize);
+        firstguess = guesses.get(0);
+        xGuess = String.format("%.2f", firstguess[0]);
+        yGuess = String.format("%.2f", firstguess[1]);
+        assertEquals(xGuess,"256.72");
+        assertEquals(yGuess,"1896.98");
+        
+        y = -2000;
+        classMarkerVector = new MarkerVector(traceNumber,dX,dY,dXy,dYx,y);
+        R =  classMarkerVector.getR(opticCentre);
+        guesses = classMarkerVector.getDetectorLocations(opticCentre, x, y, R, beadPixelSize);
+        firstguess = guesses.get(0);
+        xGuess = String.format("%.2f", firstguess[0]);
+        yGuess = String.format("%.2f", firstguess[1]);
+        assertEquals(xGuess,"258.92");
+        assertEquals(yGuess,"-1898.88");
+    }
+    
 }

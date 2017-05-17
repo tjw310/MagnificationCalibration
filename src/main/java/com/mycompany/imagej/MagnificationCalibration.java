@@ -33,10 +33,12 @@ import ij.gui.Roi;
 import ij.gui.StackWindow;
 import ij.gui.Plot;
 import ij.gui.PlotWindow;
+import ij.gui.PointRoi;
 import ij.gui.GenericDialog;
 import ij.measure.Calibration;
 import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 import net.imagej.ImageJ;
 import ij.process.ImageProcessor;
 
@@ -65,6 +67,7 @@ import java.awt.FileDialog;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Image;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -112,6 +115,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     private static final String ANALYSE = "Analyse";
     private static final String LOAD_TEST_IMAGE = "Load Test Image";
     private static final String DRAW_TRACES = "Draw Elliptical Traces";
+    private static final String TRANSFORM = "Transfrom Image";
     
     /** @Vector variable arrays for the trace (MarkerVector) and associated radiobuttons (JRadioButton) **/
     private Vector<MarkerVector> typeVector;
@@ -145,6 +149,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
     private JButton analyseButton;
     private JButton loadTestImageButton;
     private JButton drawTracesButton;
+    private JButton transformButton;
     private ButtonGroup radioGrp;
     private GridLayout dynGrid;
     
@@ -283,6 +288,11 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         gb.setConstraints(drawTracesButton, gbc);
         statButtonPanel.add(drawTracesButton);
         
+        transformButton = makeButton(TRANSFORM, "transform image");
+        transformButton.setEnabled(false);
+        gb.setConstraints(transformButton, gbc);
+        statButtonPanel.add(transformButton);
+        
         loadTestImageButton = makeButton(LOAD_TEST_IMAGE, "Load Test Image");
         gb.setConstraints(loadTestImageButton, gbc);
         statButtonPanel.add(loadTestImageButton);
@@ -387,7 +397,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
         }
         else if (command.equals(INITIALIZE)) {
             initializeImage();
-            initializeButton.setEnabled(false);
         }
         else if (command.startsWith(TYPE_COMMAND_PREFIX)) { // COUNT
             currentMarkerIndex =
@@ -406,6 +415,8 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             this.getOpticCentre();
             this.getSourceDetectorValues();
             this.ic.repaint();
+            transformButton.setEnabled(true);
+            drawTracesButton.setEnabled(true);
         }
         else if (command.equals(LOAD_TEST_IMAGE)) {
             //this.setBinFactor(4);
@@ -415,7 +426,69 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             this.ic.setDrawTraces(!this.ic.getDrawTraces());
             this.ic.repaint();
         }
+        else if (command.equals(TRANSFORM)) {
+            this.transformImage();
+        }
     }
+    
+    /** Transforms image based on R value and optic centre, for each bead trace
+     * Only transforms trace within certain amount of pixels. Each (x,y) pixel can correspond to a range of values.
+     * In addition there are two solution for a given object radius. If the two values in the raw image are within
+     * 20% of each other, they are recorded, if not ignored.
+     */
+    public void transformImage() {
+        if (this.effectiveSourceDistance!=0) {
+            ImageProcessor ip = calibImg.getProcessor();
+            ImageProcessor transformedImageProcessor = ip.crop();
+            ImagePlus transformedImage = new ImagePlus("Transformed Image",transformedImageProcessor);
+            ImageWindow transformImageWindow = new ImageWindow(transformedImage);
+            ImageStatistics stats = calibImg.getStatistics();
+            int meanCalibImgValue = (int)Math.round(stats.mean);
+            transformedImageProcessor.set(meanCalibImgValue);
+            final int beadPixelSize = 25;
+            double[] squareValues = new double[beadPixelSize];
+            ArrayList<double[]> detectorLocations = new ArrayList<double[]>();
+            for (MarkerVector currentTrace : typeVector) {
+                if (currentTrace.size()==4) {
+                    double yPos = currentTrace.getAverageYPosition();
+                    for (int i=0;i<transformedImage.getWidth();i++) {
+                        for (int j=0; j<beadPixelSize;j++) {
+                            double x = (double) i-transformedImage.getWidth()/2;
+                            double y = (double) j+Math.round(yPos)-(beadPixelSize-1)/2;
+                            double radiusMax = currentTrace.getTraceRadius(opticCentre, this.effectiveSourceDistance) +(beadPixelSize-1)/2;
+                            if (radiusMax*radiusMax>x*x) {
+                                detectorLocations = currentTrace.getDetectorLocations(opticCentre, x, y, this.effectiveSourceDistance, beadPixelSize);
+                                for (int k=0;k<detectorLocations.size();k++) {
+                                    double[] coords = detectorLocations.get(k);
+                                    int xQuery1 = (short) Math.round(coords[0])+transformedImage.getWidth()/2;
+                                    int yQuery1 = (short) Math.round(coords[1])+transformedImage.getHeight()/2;
+                                    int xQuery2 = (short) Math.round(coords[2])+transformedImage.getWidth()/2;
+                                    int yQuery2 = (short) Math.round(coords[3])+transformedImage.getHeight()/2;
+                                    int value = ip.get(xQuery1,yQuery1);
+                                    int value2 = ip.get(xQuery2,yQuery2);
+                                    if (Math.abs(1-(double)value/value2)<0.25) {
+                                        squareValues[k] = value*value2;
+                                    }
+                                }
+                                Arrays.sort(squareValues);
+                                int inputValue = (int) Math.sqrt(squareValues[squareValues.length-1]);
+                                Arrays.fill(squareValues, 0);
+                                if (inputValue>meanCalibImgValue) {
+                                    transformedImageProcessor.set(i,(int)y + transformedImageProcessor.getHeight()/2, inputValue);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            transformedImage.resetDisplayRange();
+            transformImageWindow.updateImage(transformedImage);
+        }
+        else {
+            IJ.error("Please run analysis first");
+        }
+    }
+    
     
     /** INITIALISE button method
      * creates copy of current image, creates imagecanvas to place points
@@ -426,6 +499,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             IJ.noImage();
         }
         else if (img.getStackSize() == 1) {
+            initializeButton.setEnabled(false);
             ImageProcessor ip = img.getProcessor();
             ip.resetRoi();   
             ip = ip.crop();
@@ -440,7 +514,6 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
             removeButton.setEnabled(true);
             deleteButton.setEnabled(true);
             analyseButton.setEnabled(true);
-            drawTracesButton.setEnabled(true);
             
             dynButtonPanel.add(makeDynRadioButton(1));
             currentMarkerIndex = 0;
@@ -500,7 +573,7 @@ public class MagnificationCalibration extends JFrame implements ActionListener, 
                 }
                 effectiveR.addLabel(0, 0, "Av. Source-Detector Dist = " + String.format("%.0f", sourceDetDistTotal/yVals.size())+"  Standard Deviation = " +
                         String.format("%.0f", Math.sqrt(error/(yVals.size()-1))));
-                //this.effectiveSourceDistance = sourceDetDistTotal/yVals.size();
+                this.effectiveSourceDistance = sourceDetDistTotal/yVals.size();
                 this.ic.setGlobalEffectiveSourceDistance(sourceDetDistTotal/yVals.size());
                 effectiveR.setLineWidth(2);
                 effectiveR.setColor(Color.red);

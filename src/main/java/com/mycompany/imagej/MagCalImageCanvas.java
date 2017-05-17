@@ -157,6 +157,18 @@ public class MagCalImageCanvas extends ImageCanvas implements KeyListener {
         }
     }
     
+    public void paintSingleMarkerPoint(final int x,final int y) {
+        Graphics g = this.getGraphics();
+        final Graphics2D g2 = (Graphics2D) g;
+        Color normalColor = g2.getColor();
+        srcRect = getSrcRect();
+        double xM = ((double) x- srcRect.x) * magnification;
+        double yM = ((double) y  - srcRect.y) * magnification;
+        g2.setColor(Color.blue);
+        g2.fillOval((int) xM - 1, (int) yM - 1, 2, 2);
+        g2.setColor(normalColor);
+    }
+    
     
 
     public void removeLastMarker() {
